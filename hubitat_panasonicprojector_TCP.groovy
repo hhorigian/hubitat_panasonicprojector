@@ -1,5 +1,5 @@
 /**
- *  Hubitat - Panasonic IP PT-VMZ71 Driver  - 
+ *  Hubitat - Panasonic IP Projector Driver  -  tested with a PT-VMZ71 
  *
  *  Copyright 2024 VH
  *
@@ -15,12 +15,9 @@
  *        1.0 15/2/2025  - V.BETA 1 - Power on / Power off Functions
  */
 metadata {
-    definition(name: "Panasonic IP Projector PT-VMZ71", namespace: "VH", author: "VH") {
+    definition(name: "Panasonic IP Projector", namespace: "VH", author: "VH") {
         capability "Actuator"
-        capability "Switch"
-        capability "Configuration"
-        capability "Initialize"
-        capability "Refresh"     
+        capability "Switch"  
 
         command "sendPowerOffCommand"
         command "sendPowerOnCommand"
