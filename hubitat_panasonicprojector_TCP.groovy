@@ -1,7 +1,7 @@
 /**
- *  Hubitat - Panasonic IP Projector Driver  -  tested with a PT-VMZ71 
+ *  Hubitat - Panasonic IP Projector Driver  - 
  *
- *  Copyright 2024 VH
+ *  Copyright 2024 VH - Vhorigian
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,11 +13,13 @@
  *  for the specific language governing permissions and limitations under the License.
  *        
  *        1.0 15/2/2025  - V.BETA 1 - Power on / Power off Functions
+ * 		  1.1 16/2/2025  - Added SendEvent for Switch
+ *
  */
 metadata {
     definition(name: "Panasonic IP Projector", namespace: "VH", author: "VH") {
         capability "Actuator"
-        capability "Switch"  
+        capability "Switch"
 
         command "sendPowerOffCommand"
         command "sendPowerOnCommand"
@@ -30,49 +32,54 @@ preferences {
         input "username", "text", title: "Username", defaultValue: "admin", required: true
         input "password", "password", title: "Password", required: true
         input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: false
-    input name: "UserGuide", type: "hidden", title: fmtHelpInfo("Manual do Driver") 
-
-
+        input name: "UserGuide", type: "hidden", title: fmtHelpInfo("Manual do Driver")
     }
 }
 
-  import groovy.transform.Field
-    @Field static final String DRIVER = "by TRATO"
-    @Field static final String USER_GUIDE = "https://github.com/hhorigian/"
+import groovy.transform.Field
+@Field static final String DRIVER = "by TRATO"
+@Field static final String USER_GUIDE = "https://github.com/hhorigian/"
 
-
-    String fmtHelpInfo(String str) {
+String fmtHelpInfo(String str) {
     String prefLink = "<a href='${USER_GUIDE}' target='_blank'>${str}<br><div style='font-size: 70%;'>${DRIVER}</div></a>"
     return "<div style='font-size: 160%; font-style: bold; padding: 2px 0px; text-align: center;'>${prefLink}</div>"
-    }
+}
 
 import groovy.json.JsonSlurper
 import groovy.transform.Field
 
-
 def installed() {
     log.debug "Installed with settings: ${settings}"
-    runIn(1800, logsOff)        
+    runIn(1800, logsOff)
 }
 
 def updated() {
     log.debug "Updated"
-
+    initialize()
 }
 
+def initialize() {
+    // Any initialization logic can go here
+}
 
-def parse(msg){   
-    log.info "Last Msg: " + msg
+def parse(String description) {
+    log.info "Parsing message: ${description}"
+    // Handle any incoming messages that might affect the switch state
+    // For example, if the projector sends a status update, you can parse it here
+    // and update the switch state accordingly.
 }
 
 def on() {
+    log.info "Turning on the projector"
     sendPowerOnCommand()
-}   
-
-def off() {
-    sendPowerOffCommand()
+    sendEvent(name: "switch", value: "on")
 }
 
+def off() {
+    log.info "Turning off the projector"
+    sendPowerOffCommand()
+    sendEvent(name: "switch", value: "off")
+}
 
 def sendPowerOffCommand() {
     def ip = ipAddress
@@ -80,15 +87,12 @@ def sendPowerOffCommand() {
     def pass = password
     def uri = "http://${ip}/cgi-bin/power_off.cgi"
 
-    // Step 1: Send an initial request to get the WWW-Authenticate header
     def authParams = getDigestAuthParams(uri)
     
     if (authParams) {
-        // Step 2: Generate the Digest Authentication header
         def digestAuth = generateDigestAuth(uri, user, pass, authParams)
         
         if (digestAuth) {
-            // Step 3: Send the actual request with the Digest Authentication header
             def headers = [
                 "Authorization": digestAuth
             ]
@@ -102,6 +106,7 @@ def sendPowerOffCommand() {
                 httpGet(params) { resp ->
                     if (resp.status == 200) {
                         log.info "Power off command sent successfully."
+                        sendEvent(name: "switch", value: "off")
                     } else {
                         log.error "Failed to send power off command. HTTP status: ${resp.status}"
                     }
@@ -123,15 +128,12 @@ def sendPowerOnCommand() {
     def pass = password
     def uri = "http://${ip}/cgi-bin/power_on.cgi"
 
-    // Step 1: Send an initial request to get the WWW-Authenticate header
     def authParams = getDigestAuthParams(uri)
     
     if (authParams) {
-        // Step 2: Generate the Digest Authentication header
         def digestAuth = generateDigestAuth(uri, user, pass, authParams)
         
         if (digestAuth) {
-            // Step 3: Send the actual request with the Digest Authentication header
             def headers = [
                 "Authorization": digestAuth
             ]
@@ -145,6 +147,7 @@ def sendPowerOnCommand() {
                 httpGet(params) { resp ->
                     if (resp.status == 200) {
                         log.info "Power ON command sent successfully."
+                        sendEvent(name: "switch", value: "on")
                     } else {
                         log.error "Failed to send power ON command. HTTP status: ${resp.status}"
                     }
@@ -159,21 +162,18 @@ def sendPowerOnCommand() {
         log.error "Failed to retrieve Digest Authentication parameters."
     }
 }
+
 private Map getDigestAuthParams(String uri) {
     def params = [:]
     try {
-        // Attempt to send the initial request
         httpGet([uri: uri]) { resp ->
-            // This block will only execute if the response status is 200
             log.debug "Server response status: ${resp.status}"
             log.debug "Server response headers: ${resp.headers}"
         }
     } catch (groovyx.net.http.HttpResponseException e) {
-        // Handle the exception for non-200 status codes
         if (e.statusCode == 401) {
             def authHeader = e.response?.headers?.getAt("WWW-Authenticate")
             if (authHeader) {
-                // Convert the BufferedHeader object to a string
                 def authHeaderString = authHeader.toString()
                 log.debug "WWW-Authenticate header: ${authHeaderString}"
                 params.realm = extractValue(authHeaderString, "realm")
@@ -220,7 +220,6 @@ private String extractValue(String header, String key) {
 private String md5(String input) {
     return java.security.MessageDigest.getInstance("MD5").digest(input.bytes).encodeHex().toString()
 }
-
 
 def logsOff() {
     log.warn 'logging disabled...'
